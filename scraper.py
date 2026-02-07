@@ -166,7 +166,6 @@ def generate_report():
     """
     Generate the final report with analytics
     """
-    # Save final analytics
     save_analytics(analytics)
     
     report = []
@@ -175,24 +174,22 @@ def generate_report():
     report.append("=" * 80)
     report.append("")
     
-    # Question 1: Unique pages
     report.append(f"1. Number of unique pages found: {len(analytics['unique_pages'])}")
     report.append("")
     
-    # Question 2: Longest page
     report.append(f"2. Longest page (by word count):")
     report.append(f"   URL: {analytics['longest_page']['url']}")
     report.append(f"   Word count: {analytics['longest_page']['word_count']}")
     report.append("")
     
-    # Question 3: 50 most common words
+
     report.append("3. 50 most common words:")
     most_common = analytics['all_words'].most_common(50)
     for i, (word, count) in enumerate(most_common, 1):
         report.append(f"   {i:2}. {word:20} - {count:6} occurrences")
     report.append("")
     
-    # Question 4: Subdomains
+
     report.append("4. Subdomains in uci.edu domain:")
     sorted_subdomains = sorted(analytics['subdomains'].items())
     for subdomain, count in sorted_subdomains:
@@ -200,8 +197,6 @@ def generate_report():
     report.append("")
     
     report.append("=" * 80)
-    
-    # Write report to file
     report_text = "\n".join(report)
     with open("REPORT.txt", 'w') as f:
         f.write(report_text)
