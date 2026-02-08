@@ -152,6 +152,7 @@ def is_valid(url):
 
     try:
         parsed = urlparse(url)
+
         if parsed.scheme not in set(["http", "https"]):
             return False
 
@@ -161,7 +162,6 @@ def is_valid(url):
             "informatics.uci.edu", 
             "stat.uci.edu"
         ]
-
         if not any(parsed.netloc.endswith(domain) for domain in allowed_domains):
             return False
 
@@ -170,16 +170,21 @@ def is_valid(url):
             if path_parts.count(folder) >= 3:
                 return False
         
-        if len(url) > 250:
+        if len(url) > 150:
             return False
         
         query_params = parse_qs(parsed.query)
         
-        trap_params = ['date', 'cal', 'calendar', 'share', 'replytocom', 'action', 'print']
+        for param_key in query_params.keys():
+            param_lower = param_key.lower()
+            if any(ui in param_lower for ui in ['tab', 'view', 'mode', 'do', 'action', 'sort', 'filter', 'page', 'display', 'show', 'format']):
+                return False
+        
+        trap_params = ['date', 'cal', 'calendar', 'share', 'replytocom', 'print', 'offset', 'month', 'year', 'day']
         if any(param in query_params for param in trap_params):
             return False
         
-        if len(query_params) > 5:
+        if len(query_params) > 3:
             return False
         
         trap_patterns = [
