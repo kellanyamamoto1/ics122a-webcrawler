@@ -6,6 +6,9 @@ import json
 import os
 
 ANALYTICS_FILE = "analytics.json"
+# Track pages crawled per subdomain to prevent excessive crawling
+subdomain_page_count = Counter()
+MAX_PAGES_PER_SUBDOMAIN = 2000
 def load_analytics():
     if os.path.exists(ANALYTICS_FILE):
         with open(ANALYTICS_FILE, 'r') as f:
@@ -79,6 +82,12 @@ def extract_next_links(url, resp):
         print(f"Skipping large file: {url} ({len(content)} bytes)")
         return list()
 
+    # Check subdomain page limit to avoid excessive crawling
+    subdomain = urlparse(url).netloc
+    if subdomain_page_count[subdomain] >= MAX_PAGES_PER_SUBDOMAIN:
+        print(f"Subdomain limit reached: {subdomain} ({MAX_PAGES_PER_SUBDOMAIN} pages)")
+        return list()
+
     found_urls = set()
 
     # Uses BeautifulSoup with lxml to parse the HTML, resolve relative paths,
@@ -98,9 +107,19 @@ def extract_next_links(url, resp):
         # Filter out stop words
         filtered_words = [w for w in words if w not in STOP_WORDS]
         
-        if len(filtered_words) < 50:
+        if len(filtered_words) < 150:
             print(f"Low information content: {url} ({len(filtered_words)} words)")
             return list()
+        
+        # Calculate link density to identify navigation pages
+        links = soup.find_all('a', href=True)
+        link_density = len(links) / len(filtered_words) if len(filtered_words) > 0 else 1.0
+        if link_density > 0.3:
+            print(f"High link density: {url} (density: {link_density:.2f})")
+            return list()
+        
+        # Update subdomain page counter
+        subdomain_page_count[subdomain] += 1
         
         # === ANALYTICS COLLECTION ===
         
@@ -170,21 +189,91 @@ def is_valid(url):
             if path_parts.count(folder) >= 3:
                 return False
         
-        if len(url) > 150:
+        # Limit path depth to avoid deeply nested structures
+        path_segments = [p for p in parsed.path.split('/') if p]
+        if len(path_segments) > 5:
+            return False
+        
+        if len(url) > 100:
+            return False
+        
+        # Block URLs with date patterns in path
+        if re.search(r'/\d{4}[-/]\d{2}[-/]\d{2}', parsed.path):
+            return False
+        
+        # Block URLs with year patterns in path
+        if re.search(r'/\d{4}/', parsed.path):
+            return False
+        
+        # Block seasonal archive patterns
+        if re.search(r'/(spring|fall|winter|summer|quarter)-?\d{4}', parsed.path, re.I):
+            return False
+        
+        # Block event and calendar navigation paths
+        if re.search(r'/(events?|calendar)/(day|list|month|week|category)/', parsed.path, re.I):
+            return False
+        
+        # Block wiki revision history pages
+        if 'wiki' in parsed.netloc and 'rev=' in parsed.query:
+            return False
+        
+        # Block wiki media fetch scripts
+        if re.search(r'/lib/exe/fetch\.php', parsed.path):
+            return False
+        
+        # Block numbered pagination in paths
+        if re.search(r'/page/\d+', parsed.path, re.I):
+            return False
+        
+        # Block user ID enumeration paths
+        if re.search(r'/(author|user|profile|member|uid)/\d+', parsed.path, re.I):
+            return False
+        
+        # Block API endpoints
+        if re.search(r'/(api|rest|endpoint|service)/v?\d+', parsed.path, re.I):
+            return False
+        
+        # Block gallery/media item pages
+        if re.search(r'/(gallery|photo|image|media)/\w+/\d+', parsed.path, re.I):
             return False
         
         query_params = parse_qs(parsed.query)
+        
+         # Block wiki media viewer parameter
+        if 'do=media' in parsed.query:
+            return False
+        
+        # Block calendar-specific query parameters
+        if 'tribe-bar-date' in parsed.query:
+            return False
+        
+        if 'ical=' in parsed.query or 'outlook-ical=' in parsed.query:
+            return False
+        
+        # Block search query parameters
+        if 'q=' in parsed.query or 'search=' in parsed.query or 'query=' in parsed.query:
+            return False
+        
+        # Block version/timestamp parameters
+        if 'v=' in parsed.query or 'version=' in parsed.query or 'timestamp=' in parsed.query or 'time=' in parsed.query:
+            return False
+        
+        # Block anchor/section parameters
+        if 'section=' in parsed.query or 'anchor=' in parsed.query:
+            return False
         
         for param_key in query_params.keys():
             param_lower = param_key.lower()
             if any(ui in param_lower for ui in ['tab', 'view', 'mode', 'do', 'action', 'sort', 'filter', 'page', 'display', 'show', 'format']):
                 return False
         
-        trap_params = ['date', 'cal', 'calendar', 'share', 'replytocom', 'print', 'offset', 'month', 'year', 'day']
+        trap_params = ['date', 'cal', 'calendar', 'share', 'replytocom', 'print', 
+                       'offset', 'month', 'year', 'day', 'replyto', 'reply', 
+                       'comment', 'commentid', 'mobile', 'device']
         if any(param in query_params for param in trap_params):
             return False
         
-        if len(query_params) > 3:
+        if len(query_params) > 2:
             return False
         
         trap_patterns = [
