@@ -5,6 +5,15 @@ from collections import Counter
 import json
 import os
 
+
+"""
+Kellan Yamamoto, 28388886
+
+"""
+
+
+
+
 ANALYTICS_FILE = "analytics.json"
 # Track pages crawled per subdomain to prevent excessive crawling
 subdomain_page_count = Counter()
